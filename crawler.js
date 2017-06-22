@@ -1,47 +1,43 @@
-var http = require('http');
-var cheerio = require('cheerio');
-var url = 'http://cn163.net/archives/23645/';
+const http = require('http');
+const cheerio = require('cheerio');
 
-function datafilter(html){
-    // 沿用jquery风格
-    var $ = cheerio.load(html);
-    var arr = [];
-    var as = $('[href^="ed2k://"]');
-    var res =[];
-    as.each(function(index, el) {
-        var item = $(this);
-        var element = {
-            name:$(this).text(),
-            href:$(this).attr('href')
-        }
-        res.push(element);
-    });
-    return res;
-}
-function chooseQuality(arr,quality){
-    var newarr = arr.filter(function(index) {
-        return (index.name.indexOf(quality) > -1);
-    });
-    var res = [];
-    for(var index in newarr){
-        res.push(newarr[index].href);
+const load = url => new Promise((resolve, reject) => http.get(url, response => {
+    let html = '';
+    response.on('data', data => html += data);
+    response.on('end', () => resolve(html));
+    response.on('error', reject);
+}));
+
+const findLinks = html => {
+    const $ = cheerio.load(html);
+    return $('[href^="ed2k://"]').map((index, element) => ({
+        name: $(element).text(),
+        href: $(element).attr('href'),
+    })).toArray();
+};
+
+const withQuality = quality => link => link.name.indexOf(quality) > -1;
+
+const run = async () => {
+    try {
+        const url = 'http://cn163.net/archives/23645/';
+        const quality = '1024';
+
+        console.log(`Fetching from ${url}...`);
+        const html = await load(url);
+
+        console.log('Finding links...');
+        const links = findLinks(html);
+        const linksWithQuality = links.filter(withQuality(quality));
+        console.log(`${links.length} links found, ${linksWithQuality.length} links with quality ${quality}:`);
+
+        const resultHrefs = linksWithQuality.map(link => link.href);
+        console.log(resultHrefs);
+        console.log('Done.');
+
+    } catch (error) {
+        console.error('Error occured: ', error);
     }
-    return res;
-}
+};
 
-http.get(url,function(res){
-    var html = '';
-
-    // 如果data事件发生，回调将data片段累加到html上
-    res.on('data',function(data){
-        html += data;
-    })
-
-    res.on('end',function(){
-        var res = datafilter(html);
-        res = chooseQuality(res,'1024');
-        console.log(res);
-    })
-}).on('error',function(){
-    console.log('获取数据出错');
-})
+run();
